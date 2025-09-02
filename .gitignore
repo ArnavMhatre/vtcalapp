@@ -11,6 +11,7 @@ venv/
 .env
 credentials.json
 token.pickle
+pyvt.py
 
 # Editor/workspace
 .vscode/
