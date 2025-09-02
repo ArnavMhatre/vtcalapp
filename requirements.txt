@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+python-multipart
+pytesseract
+Pillow
+python-dotenv
+requests
+jinja2
+pytz
+google-auth
+google-auth-oauthlib
+google-api-python-client
+

@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timetable to Google Calendar</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #0ea5e9;
+            animation: spin 1s ease infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 flex items-center justify-center min-h-screen">
+
+    <div class="w-full max-w-4xl mx-auto p-4 md:p-8">
+        <div class="bg-white rounded-2xl shadow-lg p-8">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl md:text-4xl font-bold text-gray-900">VT Timetable to Google Calendar</h1>
+                <p class="text-gray-500 mt-2">Upload an image of your timetable from hokiespa to automatically create calendar events.</p>
+            </div>
+
+            <!-- Step 1: Upload -->
+            <div id="upload-section" class="mb-6">
+                <h2 class="text-xl font-semibold mb-3 text-gray-700">Step 1: Upload Your Timetable</h2>
+                <form id="upload-form" class="space-y-4">
+                    <div class="flex items-center justify-center w-full">
+                        <label for="file-upload" class="flex flex-col items-center justify-center w-full h-48 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
+                            <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                                <svg class="w-8 h-8 mb-4 text-gray-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/></svg>
+                                <p class="mb-2 text-sm text-gray-500"><span class="font-semibold">Click to upload</span> or drag and drop</p>
+                                <p class="text-xs text-gray-500">PNG, JPG, GIF (MAX. 10MB)</p>
+                            </div>
+                            <input id="file-upload" type="file" class="hidden" accept="image/*" />
+                        </label>
+                    </div>
+                    <p id="file-name" class="text-center text-sm text-gray-600"></p>
+                    <button type="submit" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-3 px-4 rounded-lg transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500">
+                        Extract Events
+                    </button>
+                </form>
+            </div>
+
+            <!-- Loading spinner for event extraction removed; only show spinner in preview section for event creation -->
+            <div id="error-message" class="hidden text-center text-red-600 bg-red-100 p-4 rounded-lg"></div>
+            
+            <!-- Step 2: Preview & Create Events -->
+            <div id="preview-section" class="hidden">
+                <div class="border-t border-gray-200 my-8"></div>
+                <h2 class="text-xl font-semibold mb-4 text-gray-700">Step 2: Preview Events</h2>
+                <div id="events-preview" class="space-y-3 max-h-80 overflow-y-auto pr-2">
+                    <!-- Events will be dynamically inserted here -->
+                </div>
+                <!-- Days selection for ARR events will be inserted here by JS if needed -->
+                <button id="create-events-btn" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 mt-6">
+                    Create Events in Google Calendar
+                </button>
+                <div id="loading-spinner" class="hidden flex justify-center items-center my-8">
+                    <div class="spinner"></div>
+                    <p class="ml-4 text-gray-600">Processing...</p>
+                </div>
+            </div>
+            <div id="success-message" class="hidden text-center text-green-700 bg-green-100 p-4 rounded-lg mt-6"></div>
+
+        </div>
+    </div>
+
+    <script>
+        const uploadForm = document.getElementById('upload-form');
+        const fileInput = document.getElementById('file-upload');
+        const fileNameDisplay = document.getElementById('file-name');
+        
+    const loadingSpinner = document.getElementById('loading-spinner');
+        const errorMessage = document.getElementById('error-message');
+        const successMessage = document.getElementById('success-message');
+        
+        const previewSection = document.getElementById('preview-section');
+        const eventsPreview = document.getElementById('events-preview');
+
+    const createEventsBtn = document.getElementById('create-events-btn');
+
+
+        // On page load, clear session storage and show upload section
+        document.addEventListener('DOMContentLoaded', () => {
+            sessionStorage.removeItem('parsedEvents');
+            document.getElementById('upload-section').style.display = 'block';
+            previewSection.style.display = 'none';
+        });
+
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length > 0) {
+                fileNameDisplay.textContent = fileInput.files[0].name;
+            } else {
+                fileNameDisplay.textContent = '';
+            }
+        });
+
+
+        uploadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!fileInput.files[0]) {
+                showError('Please select an image file first.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            hideMessages();
+            // Show spinner below extract button (for extraction only)
+            document.getElementById('extract-loading-spinner')?.remove();
+            const extractSpinner = document.createElement('div');
+            extractSpinner.id = 'extract-loading-spinner';
+            extractSpinner.className = 'flex justify-center items-center my-8';
+            extractSpinner.innerHTML = '<div class="spinner"></div><p class="ml-4 text-gray-600">Analyzing image...</p>';
+            uploadForm.parentNode.appendChild(extractSpinner);
+            previewSection.style.display = 'none';
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.events) {
+                    sessionStorage.setItem('parsedEvents', JSON.stringify(result.events));
+                    displayEvents(result.events, eventsPreview);
+                    previewSection.style.display = 'block';
+
+                    // If any event needs days input, show a prompt
+                    const arrEvents = result.events.filter(ev => ev.needs_days_input);
+                    if (arrEvents.length > 0) {
+                        showArrangedDaysPrompt(arrEvents);
+                    }
+                } else {
+                    showError(result.error || 'An unknown error occurred.');
+                }
+            } catch (error) {
+                showError('Failed to connect to the server. Please try again.');
+            } finally {
+                document.getElementById('extract-loading-spinner')?.remove();
+            }
+        });
+
+
+        createEventsBtn.addEventListener('click', async () => {
+            hideMessages();
+            loadingSpinner.style.display = 'flex';
+            loadingSpinner.querySelector('p').textContent = 'Creating calendar events...';
+
+            // Deduplicate events: only one per subject, day, and time
+            let events = JSON.parse(sessionStorage.getItem('parsedEvents'));
+            const uniqueEventsMap = {};
+            events.forEach(ev => {
+                // Key: subject|day|start_time|end_time|location
+                const key = [ev.subject, ev.day, ev.start_time_str || '', ev.end_time_str || '', ev.location || ''].join('|');
+                if (!uniqueEventsMap[key]) {
+                    uniqueEventsMap[key] = ev;
+                }
+            });
+            const uniqueEvents = Object.values(uniqueEventsMap);
+
+            try {
+                const response = await fetch('/create-events', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(uniqueEvents),
+                });
+                const result = await response.json();
+
+                if (response.ok) {
+                    showSuccess('Events created in Google Calendar!');
+                    previewSection.style.display = 'none';
+                    sessionStorage.removeItem('parsedEvents');
+                } else {
+                    showError(result.error || 'Failed to create events.');
+                }
+            } catch (error) {
+                showError('Failed to connect to the server.');
+            } finally {
+                loadingSpinner.style.display = 'none';
+                loadingSpinner.querySelector('p').textContent = 'Processing...';
+            }
+        });
+
+        // Show a prompt for ARR events to select days
+        function showArrangedDaysPrompt(arrEvents) {
+            const arrPrompt = document.createElement('div');
+            arrPrompt.className = 'bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-md mb-6';
+            arrPrompt.innerHTML = `<p class="font-bold mb-2">Some classes have ARR (Arranged) days.</p>
+                <p>Please select the days for each arranged class:</p>`;
+            arrEvents.forEach((ev, idx) => {
+                const days = ['M','T','W','R','F','S','U'];
+                const dayLabels = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+                const dayCheckboxes = days.map((d, i) => `<label class="mr-2"><input type="checkbox" name="arr-days-${idx}" value="${d}"> ${dayLabels[i]}</label>`).join(' ');
+                const classDiv = document.createElement('div');
+                classDiv.className = 'mt-2 mb-2';
+                classDiv.innerHTML = `<div class="font-semibold">${ev.subject}</div>
+                    <div class="text-sm text-gray-600">Time: ${ev.start_time_str} - ${ev.end_time_str}</div>
+                    <div class="mt-1">${dayCheckboxes}</div>`;
+                arrPrompt.appendChild(classDiv);
+            });
+            const submitBtn = document.createElement('button');
+            submitBtn.className = 'mt-4 bg-sky-500 hover:bg-sky-600 text-white font-bold py-2 px-4 rounded-lg';
+            submitBtn.textContent = 'Continue';
+            submitBtn.onclick = () => {
+                // Collect selected days for each ARR event
+                arrEvents.forEach((ev, idx) => {
+                    const checked = Array.from(document.querySelectorAll(`input[name='arr-days-${idx}']:checked`)).map(cb => cb.value);
+                    ev.selected_days = checked;
+                });
+                // Add new events for each selected day
+                let events = JSON.parse(sessionStorage.getItem('parsedEvents'));
+                arrEvents.forEach(ev => {
+                    if (ev.selected_days && ev.selected_days.length > 0) {
+                        ev.selected_days.forEach(d => {
+                            // Use your day_map to get weekday name
+                            const dayMap = {M:'Monday',T:'Tuesday',W:'Wednesday',R:'Thursday',F:'Friday',S:'Saturday',U:'Sunday'};
+                            const event_date = window.getNextWeekdayDate(dayMap[d]);
+                            const start_time = window.parseTime(ev.start_time_str);
+                            const end_time = window.parseTime(ev.end_time_str);
+                            if (start_time && end_time) {
+                                events.push({
+                                    subject: ev.subject,
+                                    start_datetime: new Date(event_date.getFullYear(), event_date.getMonth(), event_date.getDate(), start_time.getHours(), start_time.getMinutes()),
+                                    end_datetime: new Date(event_date.getFullYear(), event_date.getMonth(), event_date.getDate(), end_time.getHours(), end_time.getMinutes()),
+                                    location: ev.location,
+                                    day: dayMap[d]
+                                });
+                            }
+                        });
+                    }
+                });
+                // Remove ARR events from events
+                events = events.filter(ev => !ev.needs_days_input);
+                sessionStorage.setItem('parsedEvents', JSON.stringify(events));
+                displayEvents(events, eventsPreview);
+                arrPrompt.remove();
+            };
+            arrPrompt.appendChild(submitBtn);
+            previewSection.appendChild(arrPrompt);
+        }
+
+        // Helper: get next weekday date (JS version)
+        window.getNextWeekdayDate = function(dayName) {
+            const today = new Date();
+            const daysOfWeek = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+            const targetDay = daysOfWeek.indexOf(dayName);
+            let daysAhead = (targetDay - today.getDay() + 7) % 7;
+            if (daysAhead === 0) daysAhead = 7;
+            const result = new Date(today);
+            result.setDate(today.getDate() + daysAhead);
+            return result;
+        };
+
+        // Helper: parse time string (e.g., '12:30PM')
+        window.parseTime = function(timeStr) {
+            if (!timeStr) return null;
+            timeStr = timeStr.replace(/\s+/g, '').toUpperCase();
+            const match = timeStr.match(/(\d{1,2}):(\d{2})(AM|PM)/);
+            if (!match) return null;
+            let hour = parseInt(match[1]);
+            const minute = parseInt(match[2]);
+            const ampm = match[3];
+            if (ampm === 'PM' && hour !== 12) hour += 12;
+            if (ampm === 'AM' && hour === 12) hour = 0;
+            const d = new Date();
+            d.setHours(hour, minute, 0, 0);
+            return d;
+        };
+
+        function displayEvents(events, container) {
+            container.innerHTML = '';
+            if (events.length === 0) {
+                container.innerHTML = '<p class="text-gray-500">No events found.</p>';
+                return;
+            }
+            events.forEach(event => {
+                const eventDate = new Date(event.start_datetime);
+                const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' };
+                const startTime = eventDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const endTime = new Date(event.end_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                
+                const eventElement = document.createElement('div');
+                eventElement.className = 'p-3 bg-gray-100 rounded-lg flex items-start space-x-4';
+                eventElement.innerHTML = `
+                    <div class="bg-sky-100 text-sky-700 rounded-md text-center p-2 w-20 flex-shrink-0">
+                        <p class="font-bold text-sm">${eventDate.toLocaleDateString([], { weekday: 'short' })}</p>
+                        <p class="text-xs">${eventDate.toLocaleDateString([], { month: 'short', day: 'numeric' })}</p>
+                    </div>
+                    <div>
+                        <h4 class="font-semibold text-gray-800">${event.subject}</h4>
+                        <p class="text-sm text-gray-600">${startTime} - ${endTime}</p>
+                        <p class="text-sm text-gray-500">Location: ${event.location}</p>
+                    </div>
+                `;
+                container.appendChild(eventElement);
+            });
+        }
+        
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+        }
+
+        function showSuccess(message) {
+            successMessage.innerHTML = message + '<br><a href="https://calendar.google.com" target="_blank" class="underline text-blue-600">Open Google Calendar</a>';
+            successMessage.style.display = 'block';
+        }
+
+        function hideMessages() {
+            errorMessage.style.display = 'none';
+            successMessage.style.display = 'none';
+        }
+    </script>
+</body>
+</html>
