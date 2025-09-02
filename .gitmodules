@@ -1,0 +1,3 @@
+[submodule "vendor/pyvt"]
+	path = vendor/pyvt
+	url = https://github.com/ArnavMhatre/pyvt.git
