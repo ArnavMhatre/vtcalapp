@@ -11,7 +11,6 @@ venv/
 .env
 credentials.json
 token.pickle
-pyvt.py
 
 # Editor/workspace
 .vscode/
@@ -25,3 +24,4 @@ build/
 # OS files
 .DS_Store
 Thumbs.db
+pyvt.py
