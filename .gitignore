@@ -1,0 +1,26 @@
+# Byte-compiled / optimized
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual envs
+venv/
+.env/
+
+# Env / secrets
+.env
+credentials.json
+token.pickle
+
+# Editor/workspace
+.vscode/
+*.swp
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# OS files
+.DS_Store
+Thumbs.db
