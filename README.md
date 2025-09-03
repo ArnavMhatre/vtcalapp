@@ -78,4 +78,5 @@ git push
 - OCR requires Tesseract to be installed on the host system and available on the PATH.
 
 ## License and attribution
-The `pyvt` code was originally published by Virginia Tech. Maintain attribution and any applicable license files inside `vendor/pyvt`.
+The project is released under the MIT License — see the `LICENSE` file in this repository for details.  
+Third‑party code: the `pyvt` code included as a submodule at `vendor/pyvt` is maintained under its original license; retain attribution and any license files inside `vendor/pyvt`.
